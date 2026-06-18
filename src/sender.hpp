@@ -1,7 +1,6 @@
 #pragma once
 #include "rtc/rtc.hpp"
 
-
 class Sender {
 public:
     Sender();
@@ -13,4 +12,5 @@ public:
 
 private:
     std::shared_ptr<rtc::PeerConnection> pc_;
+    std::shared_ptr<rtc::DataChannel>    dc_;
 };
