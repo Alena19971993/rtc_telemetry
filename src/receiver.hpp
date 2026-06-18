@@ -11,6 +11,5 @@ public:
     void stop();
 
 private:
-    
     std::shared_ptr<rtc::PeerConnection> pc_;
 };

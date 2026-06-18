@@ -48,11 +48,31 @@ void Sender::reg_callbacks()
 
 void Sender::start()
 {
-    while (!gathering_done_)
+    const std::string answer_path = "/tmp/answer.sdp";
+    std::cout << "Waiting for " << answer_path << std::endl;
+    auto answer_sdp = read_file(answer_path);
+
+    while (!answer_sdp){
         std::this_thread::sleep_for(std::chrono::seconds(1));
+        answer_sdp = read_file(answer_path);
+    }
+
+    try {
+        pc_->setRemoteDescription(rtc::Description(answer_sdp.value(),
+                                                   rtc::Description::Type::Answer));
+    } catch (const std::exception& e) {
+        std::cout << "Faild to get SDP: " << e.what() << std::endl;
+        return;
+    }
 }
 
-void Sender::stop() {}
+void Sender::stop()
+{
+    while (pc_->state() != rtc::PeerConnection::State::Closed &&
+           pc_->state() != rtc::PeerConnection::State::Failed) {
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+}
 
 Sender::~Sender() {}
 
@@ -61,5 +81,6 @@ int main()
     rtc::InitLogger(rtc::LogLevel::Warning);
     Sender sender;
     sender.start();
+    sender.stop();
     return 0;
 }
