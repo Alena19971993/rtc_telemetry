@@ -12,5 +12,6 @@ public:
 
 private:
     std::shared_ptr<rtc::PeerConnection> pc_;
-    std::shared_ptr<rtc::DataChannel>    dc_;
+    std::shared_ptr<rtc::DataChannel> dc_;
+    std::atomic_bool gathering_done_{false};
 };
