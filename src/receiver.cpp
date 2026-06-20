@@ -46,8 +46,14 @@ void Receiver::start()
     const std::string offer_path = "/tmp/offer.sdp";
     std::cout << "Waiting for " << offer_path << std::endl;
     auto offer_sdp = read_file(offer_path);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(1);
 
     while (!offer_sdp){
+        if (std::chrono::steady_clock::now() > deadline) {
+            std::cout << "Timeout waiting for offer" << std::endl;
+            pc_->close();
+            return;
+        }
         std::this_thread::sleep_for(std::chrono::seconds(1));
         offer_sdp = read_file(offer_path);
     }
@@ -64,17 +70,19 @@ void Receiver::start()
 void Receiver::stop()
 {
     while (pc_->state() != rtc::PeerConnection::State::Closed &&
-           pc_->state() != rtc::PeerConnection::State::Failed) {
+           pc_->state() != rtc::PeerConnection::State::Failed &&
+           pc_->state() != rtc::PeerConnection::State::Disconnected) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
 
-Receiver::~Receiver() {}
+Receiver::~Receiver(){
+    stop();
+}
 
 int main() {
     rtc::InitLogger(rtc::LogLevel::Warning);
     Receiver receiver;
     receiver.start();
-    receiver.stop();
     return 0;
 }
