@@ -8,6 +8,8 @@
 
 Sender::Sender()
 {
+    std::remove(answer_path_.c_str());
+    std::remove(offer_path_.c_str());
     rtc::Configuration config;
     pc_ = std::make_shared<rtc::PeerConnection>(config);
     
@@ -23,10 +25,8 @@ void Sender::reg_callbacks()
     pc_->onGatheringStateChange([this](rtc::PeerConnection::GatheringState state) {
         std::cout << "Gathering state: " << state  << std::endl;
         if (state == rtc::PeerConnection::GatheringState::Complete) {
-            const std::string offer_path = "/tmp/offer.sdp";
-            write_file(offer_path, std::string(pc_->localDescription().value()));
-            std::cout << "Offer written to: " << offer_path << std::endl;
-            gathering_done_ = true;
+            write_file(offer_path_, std::string(pc_->localDescription().value()));
+            std::cout << "Offer written to: " << offer_path_ << std::endl;
         }
     });
 
@@ -34,6 +34,7 @@ void Sender::reg_callbacks()
         dc_ = pc_->createDataChannel("telemetry");
     } catch (const std::exception& e) {
         std::cout << e.what() << std::endl;
+        pc_->close();
         return;
     }
 
@@ -48,13 +49,18 @@ void Sender::reg_callbacks()
 
 void Sender::start()
 {
-    const std::string answer_path = "/tmp/answer.sdp";
-    std::cout << "Waiting for " << answer_path << std::endl;
-    auto answer_sdp = read_file(answer_path);
+    std::cout << "Waiting for " << answer_path_ << std::endl;
+    auto answer_sdp = read_file(answer_path_);
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(1);
 
     while (!answer_sdp){
+        if (std::chrono::steady_clock::now() > deadline) {
+            std::cout << "Timeout waiting for answer" << std::endl;
+            pc_->close();
+            return;
+        }
         std::this_thread::sleep_for(std::chrono::seconds(1));
-        answer_sdp = read_file(answer_path);
+        answer_sdp = read_file(answer_path_);
     }
 
     try {
@@ -62,6 +68,7 @@ void Sender::start()
                                                    rtc::Description::Type::Answer));
     } catch (const std::exception& e) {
         std::cout << "Faild to get SDP: " << e.what() << std::endl;
+        pc_->close();
         return;
     }
 }
@@ -69,18 +76,21 @@ void Sender::start()
 void Sender::stop()
 {
     while (pc_->state() != rtc::PeerConnection::State::Closed &&
-           pc_->state() != rtc::PeerConnection::State::Failed) {
+           pc_->state() != rtc::PeerConnection::State::Failed &&
+           pc_->state() != rtc::PeerConnection::State::Disconnected) {
         std::this_thread::sleep_for(std::chrono::seconds(1));
     }
 }
 
-Sender::~Sender() {}
+Sender::~Sender()
+{
+    stop();
+}
 
 int main()
 {
     rtc::InitLogger(rtc::LogLevel::Warning);
     Sender sender;
     sender.start();
-    sender.stop();
     return 0;
 }
