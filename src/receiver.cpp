@@ -5,6 +5,9 @@
 
 #include "receiver.hpp"
 #include "sdp_file.hpp"
+#include "message.hpp"
+
+using namespace std::chrono;
 
 Receiver::Receiver() {
 
@@ -37,24 +40,61 @@ void Receiver::reg_callbacks()
         });
 
         dc->onMessage([this](auto data) {
+            if (std::holds_alternative<std::string>(data))
+                receive_mesg(std::get<std::string>(data));
         });
     });
+}
+
+void Receiver::receive_mesg(const std::string& data)
+{
+    Message msg;
+    try {
+        msg = nlohmann::json::parse(data).get<Message>();
+    } catch (const std::exception& e) {
+        std::cout << "Failed to parse message: " << e.what() << std::endl;
+        return;
+    }
+
+    received_++;
+    if (received_ == 1)
+        start_time_ = std::chrono::steady_clock::now();
+
+    auto now     = system_clock::now().time_since_epoch();
+    uint64_t now_secs = duration_cast<seconds>(now).count();
+    uint32_t now_ns   = duration_cast<nanoseconds>(now).count() % 1'000'000'000;
+
+    double latency_ms = (static_cast<double>(now_secs - msg.timestamp.secs) * 1e9 +
+                         static_cast<double>(now_ns) - static_cast<double>(msg.timestamp.nanosecs)) / 1e6;
+
+    sum_latency_ += latency_ms;
+
+    std::cout << "received seq=" << msg.seq << " latency_ms=" << latency_ms << std::endl;
+
+    if (received_ % 100 == 0) {
+        auto elapsed = duration<double>(
+                       steady_clock::now() - start_time_).count();
+
+        std::cout << "stats: received=" << received_
+                  << " avg_latency_ms=" << sum_latency_ / received_
+                  << " rate_hz=" << received_ / elapsed << std::endl;
+    }
 }
 
 void Receiver::start()
 {
     const std::string offer_path = "/tmp/offer.sdp";
-    std::cout << "Waiting for " << offer_path << std::endl;
+    std::cout << "Waiting for: " << offer_path << std::endl;
     auto offer_sdp = read_file(offer_path);
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(1);
+    auto deadline = steady_clock::now() + minutes(1);
 
     while (!offer_sdp){
-        if (std::chrono::steady_clock::now() > deadline) {
+        if (steady_clock::now() > deadline) {
             std::cout << "Timeout waiting for offer" << std::endl;
             pc_->close();
             return;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(seconds(1));
         offer_sdp = read_file(offer_path);
     }
 
@@ -72,7 +112,7 @@ void Receiver::stop()
     while (pc_->state() != rtc::PeerConnection::State::Closed &&
            pc_->state() != rtc::PeerConnection::State::Failed &&
            pc_->state() != rtc::PeerConnection::State::Disconnected) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(seconds(1));
     }
 }
 

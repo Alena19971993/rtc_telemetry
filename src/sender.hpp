@@ -1,26 +1,13 @@
 #pragma once
 #include "rtc/rtc.hpp"
 
-struct Timestamp {
-    uint64_t secs;
-    uint32_t nanosecs;
-};
-
-struct Message {
-    uint64_t    seq;
-    Timestamp   timestamp;
-    std::string payload;
-};
-
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Timestamp, secs, nanosecs)
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE(Message, seq, timestamp, payload)
+#include "message.hpp"
 
 class Sender {
 public:
     Sender();
     ~Sender();
 
-    void reg_callbacks();
     void start();
     void stop();
 

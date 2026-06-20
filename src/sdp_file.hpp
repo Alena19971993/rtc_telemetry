@@ -21,7 +21,6 @@ inline std::optional<std::string> read_file(const std::string& path) {
         return std::string((std::istreambuf_iterator<char>(f)),
                             std::istreambuf_iterator<char>());
     } catch (const std::ios_base::failure& e) {
-        std::cout << "Failed to read file: " << path << " — " << e.what() << std::endl;
         return std::nullopt;
     }
 }
