@@ -10,9 +10,9 @@ Sender::Sender()
 {
     std::remove(answer_path_.c_str());
     std::remove(offer_path_.c_str());
+
     rtc::Configuration config;
     pc_ = std::make_shared<rtc::PeerConnection>(config);
-    
     reg_callbacks();
 }
 
@@ -47,6 +47,24 @@ void Sender::reg_callbacks()
     });
 }
 
+void Sender::send_message()
+{
+    while (!dc_->isOpen())
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+    static uint64_t seq = 0;
+    while (dc_->isOpen()) {
+        auto now      = std::chrono::system_clock::now().time_since_epoch();
+        uint64_t secs = std::chrono::duration_cast<std::chrono::seconds>(now).count();
+        uint32_t ns   = std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() % 1'000'000'000;
+
+        Message msg{++seq, {secs, ns}, "hello"};
+        dc_->send(nlohmann::json(msg).dump());
+        std::cout << "Sent seq= " << seq << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+}
+
 void Sender::start()
 {
     std::cout << "Waiting for " << answer_path_ << std::endl;
@@ -71,6 +89,8 @@ void Sender::start()
         pc_->close();
         return;
     }
+
+    send_message();
 }
 
 void Sender::stop()
