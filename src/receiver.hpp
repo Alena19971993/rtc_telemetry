@@ -1,6 +1,8 @@
 #pragma once
 #include "rtc/rtc.hpp"
 
+#include "message.hpp"
+
 class Receiver {
 public:
     Receiver();

@@ -6,6 +6,8 @@
 #include "sdp_file.hpp"
 #include "sender.hpp"
 
+using namespace std::chrono;
+
 Sender::Sender() {
     std::remove(answer_path_.c_str());
     std::remove(offer_path_.c_str());
@@ -41,35 +43,42 @@ void Sender::reg_callbacks() {
 }
 
 void Sender::send_message() {
-    while (!dc_->isOpen())
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    auto deadline = steady_clock::now() + minutes(1);
+    while (!dc_->isOpen()) {
+        if (steady_clock::now() > deadline) {
+            std::cout << "Timeout waiting for DataChannel" << std::endl;
+            pc_->close();
+            return;
+        }
+        std::this_thread::sleep_for(milliseconds(100));
+    }
 
     static uint64_t seq = 0;
     while (dc_->isOpen()) {
-        auto now = std::chrono::system_clock::now().time_since_epoch();
-        uint64_t secs = std::chrono::duration_cast<std::chrono::seconds>(now).count();
-        uint32_t ns = static_cast<uint32_t>(
-            std::chrono::duration_cast<std::chrono::nanoseconds>(now).count() % 1'000'000'000);
+        auto now = system_clock::now().time_since_epoch();
+        uint64_t secs = duration_cast<seconds>(now).count();
+        uint32_t ns =
+            static_cast<uint32_t>(duration_cast<nanoseconds>(now).count() % 1'000'000'000);
 
         Message msg{++seq, {secs, ns}, "hello"};
         dc_->send(nlohmann::json(msg).dump());
         std::cout << "Sent seq= " << seq << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        std::this_thread::sleep_for(milliseconds(100));
     }
 }
 
 void Sender::start() {
     std::cout << "Waiting for " << answer_path_ << std::endl;
     auto answer_sdp = read_file(answer_path_);
-    auto deadline = std::chrono::steady_clock::now() + std::chrono::minutes(1);
+    auto deadline = steady_clock::now() + minutes(1);
 
     while (!answer_sdp) {
-        if (std::chrono::steady_clock::now() > deadline) {
+        if (steady_clock::now() > deadline) {
             std::cout << "Timeout waiting for answer" << std::endl;
             pc_->close();
             return;
         }
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(seconds(1));
         answer_sdp = read_file(answer_path_);
     }
 
@@ -77,7 +86,7 @@ void Sender::start() {
         pc_->setRemoteDescription(
             rtc::Description(answer_sdp.value(), rtc::Description::Type::Answer));
     } catch (const std::exception &e) {
-        std::cout << "Faild to get SDP: " << e.what() << std::endl;
+        std::cout << "Failed to get SDP: " << e.what() << std::endl;
         pc_->close();
         return;
     }
@@ -89,7 +98,7 @@ void Sender::stop() {
     while (pc_->state() != rtc::PeerConnection::State::Closed &&
            pc_->state() != rtc::PeerConnection::State::Failed &&
            pc_->state() != rtc::PeerConnection::State::Disconnected) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(seconds(1));
     }
 }
 

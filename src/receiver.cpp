@@ -98,7 +98,7 @@ void Receiver::start() {
         pc_->setRemoteDescription(
             rtc::Description(offer_sdp.value(), rtc::Description::Type::Offer));
     } catch (const std::exception &e) {
-        std::cout << "Faild to get SDP: " << e.what() << std::endl;
+        std::cout << "Failed to get SDP: " << e.what() << std::endl;
         return;
     }
 }
