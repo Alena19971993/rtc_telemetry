@@ -68,6 +68,10 @@ void Sender::send_message() {
 }
 
 void Sender::start() {
+    if (!dc_) {
+        pc_->close();
+        return;
+    };
     std::cout << "Waiting for " << answer_path_ << std::endl;
     auto answer_sdp = read_file(answer_path_);
     auto deadline = steady_clock::now() + minutes(1);
