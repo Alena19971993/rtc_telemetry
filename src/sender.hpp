@@ -15,7 +15,6 @@ private:
     void reg_callbacks();
     void send_message();
 
-    std::optional<Message> message_;
     std::shared_ptr<rtc::PeerConnection> pc_;
     std::shared_ptr<rtc::DataChannel> dc_;
     const std::string answer_path_ = "/tmp/answer.sdp";

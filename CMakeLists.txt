@@ -6,11 +6,20 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(LIBDATACHANNEL_DIR ${CMAKE_SOURCE_DIR}/depend/libdatachannel)
 
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wshadow
+    -Wuninitialized
+    -Wconversion
+    -Wpedantic
+)
+
 add_executable(sender src/sender.cpp src/sender.hpp src/sdp_file.hpp src/message.hpp)
 add_executable(receiver src/receiver.cpp src/receiver.hpp src/sdp_file.hpp src/message.hpp)
 
 foreach(TARGET sender receiver)
-    target_include_directories(${TARGET} PRIVATE
+    target_include_directories(${TARGET} SYSTEM PRIVATE
         ${LIBDATACHANNEL_DIR}/include
     )
     target_link_libraries(${TARGET} ${LIBDATACHANNEL_DIR}/lib/libdatachannel.so)

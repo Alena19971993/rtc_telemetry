@@ -9,8 +9,8 @@ struct Timestamp {
 };
 
 struct Message {
-    uint64_t    seq;
-    Timestamp   timestamp;
+    uint64_t seq;
+    Timestamp timestamp;
     std::string payload;
 };
 
