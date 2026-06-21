@@ -51,9 +51,10 @@ void Receiver::receive_mesg(const std::string &data) {
         return;
     }
 
-    received_++;
-    if (received_ == 1)
-        start_time_ = std::chrono::steady_clock::now();
+    uint64_t count = ++received_;
+    if (count == 1)
+        start_time_us_ = static_cast<uint64_t>(
+            duration_cast<microseconds>(steady_clock::now().time_since_epoch()).count());
 
     auto now = system_clock::now().time_since_epoch();
     uint64_t now_secs = duration_cast<seconds>(now).count();
@@ -65,16 +66,18 @@ void Receiver::receive_mesg(const std::string &data) {
          static_cast<double>(msg.timestamp.nanosecs)) /
         1e6;
 
-    sum_latency_ += latency_ms;
+    uint64_t latency_us = static_cast<uint64_t>(latency_ms * 1000.0);
+    sum_latency_us_ += latency_us;
 
     std::cout << "received seq=" << msg.seq << " latency_ms=" << latency_ms << std::endl;
 
-    if (received_ % 100 == 0) {
-        auto elapsed = duration<double>(steady_clock::now() - start_time_).count();
+    if (count % 100 == 0) {
+        auto start = steady_clock::time_point(microseconds(start_time_us_.load()));
+        double elapsed = duration<double>(steady_clock::now() - start).count();
 
-        std::cout << "stats: received=" << received_
-                  << " avg_latency_ms=" << sum_latency_ / static_cast<double>(received_)
-                  << " rate_hz=" << static_cast<double>(received_) / elapsed << std::endl;
+        std::cout << "stats: received=" << count
+                  << " avg_latency_ms=" << static_cast<double>(sum_latency_us_.load()) / static_cast<double>(count) / 1000.0
+                  << " rate_hz=" << static_cast<double>(count) / elapsed << std::endl;
     }
 }
 
