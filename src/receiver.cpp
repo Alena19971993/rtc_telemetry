@@ -24,9 +24,8 @@ void Receiver::reg_callbacks() {
     pc_->onGatheringStateChange([this](rtc::PeerConnection::GatheringState state) {
         std::cout << "Gathering state: " << state << std::endl;
         if (state == rtc::PeerConnection::GatheringState::Complete) {
-            const std::string answer_path = "/tmp/answer.sdp";
-            write_file(answer_path, std::string(pc_->localDescription().value()));
-            std::cout << "Answer written to: " << answer_path << std::endl;
+            write_file(answer_path_, std::string(pc_->localDescription().value()));
+            std::cout << "Answer written to: " << answer_path_ << std::endl;
         }
     });
 
@@ -37,12 +36,12 @@ void Receiver::reg_callbacks() {
 
         dc->onMessage([this](auto data) {
             if (std::holds_alternative<std::string>(data))
-                receive_mesg(std::get<std::string>(data));
+                receive_msg(std::get<std::string>(data));
         });
     });
 }
 
-void Receiver::receive_mesg(const std::string &data) {
+void Receiver::receive_msg(const std::string &data) {
     Message msg;
     try {
         msg = nlohmann::json::parse(data).get<Message>();
@@ -75,16 +74,17 @@ void Receiver::receive_mesg(const std::string &data) {
         auto start = steady_clock::time_point(microseconds(start_time_us_.load()));
         double elapsed = duration<double>(steady_clock::now() - start).count();
 
-        std::cout << "stats: received=" << count
-                  << " avg_latency_ms=" << static_cast<double>(sum_latency_us_.load()) / static_cast<double>(count) / 1000.0
+        std::cout << "stats: received=" << count << " avg_latency_ms="
+                  << static_cast<double>(sum_latency_us_.load()) / static_cast<double>(count) /
+                         1000.0
                   << " rate_hz=" << static_cast<double>(count) / elapsed << std::endl;
     }
 }
 
 void Receiver::start() {
-    const std::string offer_path = "/tmp/offer.sdp";
-    std::cout << "Waiting for: " << offer_path << std::endl;
-    auto offer_sdp = read_file(offer_path);
+
+    std::cout << "Waiting for: " << offer_path_ << std::endl;
+    auto offer_sdp = read_file(offer_path_);
     auto deadline = steady_clock::now() + minutes(1);
 
     while (!offer_sdp) {
@@ -94,7 +94,7 @@ void Receiver::start() {
             return;
         }
         std::this_thread::sleep_for(seconds(1));
-        offer_sdp = read_file(offer_path);
+        offer_sdp = read_file(offer_path_);
     }
 
     try {

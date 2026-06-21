@@ -13,7 +13,7 @@ public:
 
 private:
     void reg_callbacks();
-    void send_message();
+    void send_msg();
 
     std::shared_ptr<rtc::PeerConnection> pc_;
     std::shared_ptr<rtc::DataChannel> dc_;

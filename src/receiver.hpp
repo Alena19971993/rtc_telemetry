@@ -13,8 +13,10 @@ public:
 
 private:
     void reg_callbacks();
-    void receive_mesg(const std::string &data);
+    void receive_msg(const std::string &data);
 
+    const std::string offer_path_ = "/tmp/offer.sdp";
+    const std::string answer_path_ = "/tmp/answer.sdp";
     std::shared_ptr<rtc::PeerConnection> pc_;
     std::atomic<uint64_t> received_{0};
     std::atomic<uint64_t> sum_latency_us_{0};

@@ -42,7 +42,7 @@ void Sender::reg_callbacks() {
     dc_->onClosed([this]() { std::cout << "DataChannel closed: " << dc_->label() << std::endl; });
 }
 
-void Sender::send_message() {
+void Sender::send_msg() {
     auto deadline = steady_clock::now() + minutes(1);
     while (!dc_->isOpen()) {
         if (steady_clock::now() > deadline) {
@@ -95,7 +95,7 @@ void Sender::start() {
         return;
     }
 
-    send_message();
+    send_msg();
 }
 
 void Sender::stop() {
