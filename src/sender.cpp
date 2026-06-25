@@ -12,9 +12,18 @@ Sender::Sender() {
     std::remove(answer_path_.c_str());
     std::remove(offer_path_.c_str());
 
+    init();
+    reg_callbacks();
+}
+
+void Sender::init() {
     rtc::Configuration config;
     pc_ = std::make_shared<rtc::PeerConnection>(config);
-    reg_callbacks();
+
+    rtpConfig_ = std::make_shared<rtc::RtpPacketizationConfig>(1, "video", 96,
+                                                               rtc::H264RtpPacketizer::ClockRate);
+    packetizer_ = std::make_shared<rtc::H264RtpPacketizer>(
+        rtc::NalUnit::Separator::LongStartSequence, rtpConfig_);
 }
 
 void Sender::reg_callbacks() {
@@ -28,18 +37,34 @@ void Sender::reg_callbacks() {
             std::cout << "Offer written to: " << offer_path_ << std::endl;
         }
     });
+}
+
+bool Sender::setup_session() {
+    auto video = rtc::Description::Video("video");
+    video.addH264Codec(96);
+
+    try {
+        track_ = pc_->addTrack(video);
+        track_->setMediaHandler(packetizer_);
+    } catch (const std::exception &e) {
+        std::cout << "AddTrack failed: " << e.what() << std::endl;
+        pc_->close();
+        return false;
+    }
+    track_->onOpen([this]() { std::cout << "Track opened" << std::endl; });
+    track_->onClosed([this]() { std::cout << "Track closed" << std::endl; });
 
     try {
         dc_ = pc_->createDataChannel("telemetry");
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
         pc_->close();
-        return;
+        return false;
     }
-
     dc_->onOpen([this]() { std::cout << "DataChannel opened: " << dc_->label() << std::endl; });
-
     dc_->onClosed([this]() { std::cout << "DataChannel closed: " << dc_->label() << std::endl; });
+
+    return true;
 }
 
 void Sender::send_msg() {
@@ -68,6 +93,10 @@ void Sender::send_msg() {
 }
 
 void Sender::start() {
+    if (!setup_session()) {
+        return;
+    }
+
     if (!dc_) {
         pc_->close();
         return;
