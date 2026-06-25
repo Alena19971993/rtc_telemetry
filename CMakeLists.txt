@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 3.16)
-
 project(rtc_telemetry)
 
 set(CMAKE_CXX_STANDARD 17)
-
 set(LIBDATACHANNEL_DIR ${CMAKE_SOURCE_DIR}/depend/libdatachannel)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil)
 
 add_compile_options(
     -Wall
@@ -23,6 +24,10 @@ foreach(TARGET sender receiver)
         ${LIBDATACHANNEL_DIR}/include
     )
     target_link_libraries(${TARGET} ${LIBDATACHANNEL_DIR}/lib/libdatachannel.so)
+    target_link_libraries(${TARGET}
+        ${LIBDATACHANNEL_DIR}/lib/libdatachannel.so
+        PkgConfig::FFMPEG
+    )
     set_target_properties(${TARGET} PROPERTIES
         BUILD_RPATH ${LIBDATACHANNEL_DIR}/lib
     )

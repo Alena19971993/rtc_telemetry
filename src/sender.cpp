@@ -3,6 +3,11 @@
 #include <nlohmann/json.hpp>
 #include <thread>
 
+extern "C" {
+#include <libavcodec/avcodec.h>
+#include <libavformat/avformat.h>
+}
+
 #include "sdp_file.hpp"
 #include "sender.hpp"
 
