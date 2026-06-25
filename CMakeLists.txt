@@ -16,7 +16,7 @@ add_compile_options(
     -Wpedantic
 )
 
-add_executable(sender src/sender.cpp src/sender.hpp src/sdp_file.hpp src/message.hpp)
+add_executable(sender src/sender.cpp src/sender.hpp src/sdp_file.hpp src/message.hpp src/video_reader.hpp src/video_reader.cpp)
 add_executable(receiver src/receiver.cpp src/receiver.hpp src/sdp_file.hpp src/message.hpp)
 
 foreach(TARGET sender receiver)
