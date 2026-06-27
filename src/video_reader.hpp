@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 
 extern "C" {
@@ -19,7 +21,14 @@ public:
     bool read_frame();
     void close();
 
+    const std::byte *data() const;
+    std::size_t size() const;
+    std::int64_t pts() const;
+
 private:
+    void stream_metadata() const;
+
     AVFormatContext *fmt_ = nullptr;
     AVPacket *pkt_ = nullptr;
+    int video_stream_ = -1;
 };

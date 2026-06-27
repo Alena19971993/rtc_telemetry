@@ -10,10 +10,11 @@ extern "C" {
 
 #include "sdp_file.hpp"
 #include "sender.hpp"
+#include "video_reader.hpp"
 
 using namespace std::chrono;
 
-Sender::Sender() {
+Sender::Sender(std::string video_path) : video_path_(std::move(video_path)) {
     std::remove(answer_path_.c_str());
     std::remove(offer_path_.c_str());
 
@@ -44,20 +45,25 @@ void Sender::reg_callbacks() {
     });
 }
 
-bool Sender::setup_session() {
-    auto video = rtc::Description::Video("video");
-    video.addH264Codec(96);
+bool Sender::setup_session(bool has_video) {
+    if (has_video) {
+        auto video = rtc::Description::Video("video");
+        video.addH264Codec(96);
 
-    try {
-        track_ = pc_->addTrack(video);
-        track_->setMediaHandler(packetizer_);
-    } catch (const std::exception &e) {
-        std::cout << "AddTrack failed: " << e.what() << std::endl;
-        pc_->close();
-        return false;
+        try {
+            track_ = pc_->addTrack(video);
+            track_->setMediaHandler(packetizer_);
+        } catch (const std::exception &e) {
+            std::cout << "addTrack failed: " << e.what() << std::endl;
+            pc_->close();
+            return false;
+        }
+
+        track_->onOpen([this]() { std::cout << "Track opened" << std::endl; });
+        track_->onClosed([this]() { std::cout << "Track closed" << std::endl; });
+    } else {
+        std::cout << "Video unavailable, continuing with data channel only" << std::endl;
     }
-    track_->onOpen([this]() { std::cout << "Track opened" << std::endl; });
-    track_->onClosed([this]() { std::cout << "Track closed" << std::endl; });
 
     try {
         dc_ = pc_->createDataChannel("telemetry");
@@ -98,7 +104,9 @@ void Sender::send_msg() {
 }
 
 void Sender::start() {
-    if (!setup_session()) {
+    bool has_video = reader_.open(video_path_);
+
+    if (!setup_session(has_video)) {
         return;
     }
 
@@ -142,9 +150,12 @@ void Sender::stop() {
 
 Sender::~Sender() { stop(); }
 
-int main() {
+int main(int argc, char *argv[]) {
     rtc::InitLogger(rtc::LogLevel::Warning);
-    Sender sender;
+    std::cout << "If you want to start a video stream, specify the path to the mp4 file"
+              << std::endl;
+    std::string video_path = (argc > 1) ? argv[1] : "";
+    Sender sender(video_path);
     sender.start();
     return 0;
 }
