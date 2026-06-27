@@ -1,6 +1,9 @@
 #pragma once
 #include "rtc/rtc.hpp"
 
+#include <atomic>
+#include <thread>
+
 #include "message.hpp"
 #include "video_reader.hpp"
 
@@ -25,6 +28,8 @@ private:
     std::shared_ptr<rtc::RtpPacketizationConfig> rtpConfig_;
     std::shared_ptr<rtc::H264RtpPacketizer> packetizer_;
     std::shared_ptr<rtc::Track> track_;
+    std::thread video_thread_;
+    std::atomic_bool video_running_{false};
     const std::string video_path_;
     const std::string answer_path_ = "/tmp/answer.sdp";
     const std::string offer_path_ = "/tmp/offer.sdp";

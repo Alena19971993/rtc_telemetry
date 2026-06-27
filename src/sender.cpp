@@ -103,8 +103,19 @@ void Sender::send_msg() {
     }
 }
 
+void Sender::send_video() {
+    while (video_running_ && reader_.read_frame()) {
+        std::cout << "Video frame: size=" << reader_.size() << " pts=" << reader_.pts()
+                  << std::endl;
+    }
+
+    std::cout << "[video read done]" << std::endl;
+    track_->close();
+}
+
 void Sender::start() {
     bool has_video = reader_.open(video_path_);
+    std::cout << "[video read done]" << has_video << std::endl;
 
     if (!setup_session(has_video)) {
         return;
@@ -137,14 +148,22 @@ void Sender::start() {
         return;
     }
 
+    if (has_video) {
+        video_running_ = true;
+        video_thread_ = std::thread(&Sender::send_video, this);
+    }
+
     send_msg();
 }
 
 void Sender::stop() {
-    while (pc_->state() != rtc::PeerConnection::State::Closed &&
-           pc_->state() != rtc::PeerConnection::State::Failed &&
-           pc_->state() != rtc::PeerConnection::State::Disconnected) {
-        std::this_thread::sleep_for(seconds(1));
+    video_running_ = false;
+    if (video_thread_.joinable()) {
+        video_thread_.join();
+    }
+
+    if (pc_ && pc_->state() != rtc::PeerConnection::State::Closed) {
+        pc_->close();
     }
 }
 
