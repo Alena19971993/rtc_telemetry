@@ -6,6 +6,7 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
+#include <libavcodec/bsf.h>
 #include <libavformat/avformat.h>
 }
 
@@ -30,5 +31,6 @@ private:
 
     AVFormatContext *fmt_ = nullptr;
     AVPacket *pkt_ = nullptr;
+    AVBSFContext *bsf_ = nullptr;
     int video_stream_ = -1;
 };

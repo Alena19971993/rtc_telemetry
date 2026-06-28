@@ -18,8 +18,62 @@ Receiver::Receiver() {
 }
 
 void Receiver::reg_callbacks() {
-    pc_->onStateChange(
-        [](rtc::PeerConnection::State state) { std::cout << "ICE state: " << state << std::endl; });
+    pc_->onStateChange([this](rtc::PeerConnection::State state) {
+        std::cout << "PC state: " << state << std::endl;
+        switch (state) {
+        case rtc::PeerConnection::State::Disconnected:
+            std::cout << "Connection temporarily lost, waiting for recovery." << std::endl;
+            break;
+        case rtc::PeerConnection::State::Failed:
+            std::cout
+                << "Connection permanently lost, if the video stream is running, stopping video"
+                << std::endl;
+            break;
+        case rtc::PeerConnection::State::Closed:
+            std::cout << "Connection closed, if the video stream is running, stopping video"
+                      << std::endl;
+            break;
+        default:
+            break;
+        }
+    });
+
+    pc_->onIceStateChange([](rtc::PeerConnection::IceState state) {
+        std::cout << "ICE state: " << state << std::endl;
+        switch (state) {
+        case rtc::PeerConnection::IceState::New:
+            std::cout
+                << "ICE agent created; no remote candidates yet, connectivity checks not started."
+                << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Checking:
+            std::cout << "Pairing local/remote candidates and running STUN connectivity checks."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Connected:
+            std::cout << "A working candidate pair was found; media can flow (gathering/checks may "
+                         "still continue)."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Completed:
+            std::cout << "ICE fully finished: checks done, nominated pair selected, no more "
+                         "candidates expected."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Failed:
+            std::cout << "No candidate pair succeeded; ICE could not establish a path."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Disconnected:
+            std::cout
+                << "Connectivity temporarily lost (checks stopped passing); may recover on its own."
+                << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Closed:
+            std::cout << "ICE agent closed; terminal state." << std::endl;
+            break;
+        }
+    });
 
     pc_->onGatheringStateChange([this](rtc::PeerConnection::GatheringState state) {
         std::cout << "Gathering state: " << state << std::endl;
@@ -38,6 +92,16 @@ void Receiver::reg_callbacks() {
             if (std::holds_alternative<std::string>(data))
                 receive_msg(std::get<std::string>(data));
         });
+    });
+
+    pc_->onTrack([this](std::shared_ptr<rtc::Track> track) {
+        std::cout << "Track received: " << track->mid() << std::endl;
+        track->setMediaHandler(std::make_shared<rtc::H264RtpDepacketizer>());
+
+        track->onClosed([]() { std::cout << "Track closed" << std::endl; });
+
+        track->onFrame([this](rtc::binary data, rtc::FrameInfo) { receive_video(data); });
+        track_ = track;
     });
 }
 
@@ -81,8 +145,16 @@ void Receiver::receive_msg(const std::string &data) {
     }
 }
 
-void Receiver::start() {
+void Receiver::receive_video(const rtc::binary &data) {
+    if (!video_file_.is_open()) {
+        video_file_.open(video_path_, std::ios::binary);
+    }
+    video_file_.write(reinterpret_cast<const char *>(data.data()),
+                      static_cast<std::streamsize>(data.size()));
+    std::cout << "Video frame received, size: " << data.size() << std::endl;
+}
 
+void Receiver::start() {
     std::cout << "Waiting for: " << offer_path_ << std::endl;
     auto offer_sdp = read_file(offer_path_);
     auto deadline = steady_clock::now() + minutes(1);

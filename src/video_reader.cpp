@@ -29,6 +29,19 @@ bool VideoReader::open(const std::string &path) {
         return false;
     }
 
+    const AVBitStreamFilter *filter = av_bsf_get_by_name("h264_mp4toannexb");
+    if (!filter || av_bsf_alloc(filter, &bsf_) < 0) {
+        std::cout << "Failed to allocate bitstream filter" << std::endl;
+        close();
+        return false;
+    }
+    if (avcodec_parameters_copy(bsf_->par_in, fmt_->streams[video_stream_]->codecpar) < 0 ||
+        av_bsf_init(bsf_) < 0) {
+        std::cout << "Failed to init bitstream filter" << std::endl;
+        close();
+        return false;
+    }
+
     std::cout << "Video stream found: " << path << std::endl;
     stream_metadata();
     return true;
@@ -50,21 +63,42 @@ void VideoReader::stream_metadata() const {
 }
 
 bool VideoReader::read_frame() {
-    if (!fmt_ || !pkt_) {
+    if (!fmt_ || !pkt_ || !bsf_) {
         return false;
     }
     av_packet_unref(pkt_);
 
-    while (av_read_frame(fmt_, pkt_) >= 0) {
-        if (pkt_->stream_index == video_stream_) {
+    while (true) {
+        int ret = av_bsf_receive_packet(bsf_, pkt_);
+        if (ret == 0) {
             return true;
         }
-        av_packet_unref(pkt_);
+        if (ret == AVERROR_EOF) {
+            return false;
+        }
+        if (ret != AVERROR(EAGAIN)) {
+            return false;
+        }
+
+        ret = av_read_frame(fmt_, pkt_);
+        if (ret < 0) {
+            av_bsf_send_packet(bsf_, nullptr);
+            continue;
+        }
+        if (pkt_->stream_index != video_stream_) {
+            av_packet_unref(pkt_);
+            continue;
+        }
+        if (av_bsf_send_packet(bsf_, pkt_) < 0) {
+            return false;
+        }
     }
-    return false;
 }
 
 void VideoReader::close() {
+    if (bsf_) {
+        av_bsf_free(&bsf_);
+    }
     if (pkt_) {
         av_packet_free(&pkt_);
     }

@@ -33,8 +33,64 @@ void Sender::init() {
 }
 
 void Sender::reg_callbacks() {
-    pc_->onStateChange(
-        [](rtc::PeerConnection::State state) { std::cout << "ICE state: " << state << std::endl; });
+    pc_->onStateChange([this](rtc::PeerConnection::State state) {
+        std::cout << "PC state: " << state << std::endl;
+        switch (state) {
+        case rtc::PeerConnection::State::Disconnected:
+            std::cout << "Connection temporarily lost, waiting for recovery." << std::endl;
+            break;
+        case rtc::PeerConnection::State::Failed:
+            std::cout
+                << "Connection permanently lost, if the video stream is running, stopping video"
+                << std::endl;
+            video_running_ = false;
+            break;
+        case rtc::PeerConnection::State::Closed:
+            std::cout << "Connection closed, if the video stream is running, stopping video"
+                      << std::endl;
+            video_running_ = false;
+            break;
+        default:
+            break;
+        }
+    });
+
+    pc_->onIceStateChange([](rtc::PeerConnection::IceState state) {
+        std::cout << "ICE state: " << state << std::endl;
+        switch (state) {
+        case rtc::PeerConnection::IceState::New:
+            std::cout
+                << "ICE agent created; no remote candidates yet, connectivity checks not started."
+                << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Checking:
+            std::cout << "Pairing local/remote candidates and running STUN connectivity checks."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Connected:
+            std::cout << "A working candidate pair was found; media can flow (gathering/checks may "
+                         "still continue)."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Completed:
+            std::cout << "ICE fully finished: checks done, nominated pair selected, no more "
+                         "candidates expected."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Failed:
+            std::cout << "No candidate pair succeeded; ICE could not establish a path."
+                      << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Disconnected:
+            std::cout
+                << "Connectivity temporarily lost (checks stopped passing); may recover on its own."
+                << std::endl;
+            break;
+        case rtc::PeerConnection::IceState::Closed:
+            std::cout << "ICE agent closed; terminal state." << std::endl;
+            break;
+        }
+    });
 
     pc_->onGatheringStateChange([this](rtc::PeerConnection::GatheringState state) {
         std::cout << "Gathering state: " << state << std::endl;
@@ -104,18 +160,32 @@ void Sender::send_msg() {
 }
 
 void Sender::send_video() {
+    auto deadline = steady_clock::now() + minutes(1);
+    while (video_running_ && (!track_ || !track_->isOpen())) {
+        if (steady_clock::now() > deadline) {
+            std::cout << "Timeout waiting for Track" << std::endl;
+            return;
+        }
+        std::this_thread::sleep_for(milliseconds(100));
+    }
+
     while (video_running_ && reader_.read_frame()) {
-        std::cout << "Video frame: size=" << reader_.size() << " pts=" << reader_.pts()
-                  << std::endl;
+        if (!track_->isOpen()) {
+            break;
+        }
+        track_->send(reader_.data(), reader_.size());
+        std::cout << reader_.size() << std::endl;
     }
 
     std::cout << "[video read done]" << std::endl;
-    track_->close();
+
+    if (track_) {
+        track_->close();
+    }
 }
 
 void Sender::start() {
     bool has_video = reader_.open(video_path_);
-    std::cout << "[video read done]" << has_video << std::endl;
 
     if (!setup_session(has_video)) {
         return;
